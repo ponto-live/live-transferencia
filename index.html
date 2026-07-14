@@ -74,11 +74,12 @@
     border:none;
     border-radius:10px;
     padding:10px 6px;
-    font-size:12px;
+    font-size:11px;
     font-weight:700;
     cursor:pointer;
     transition:.15s;
-    white-space:nowrap;
+    white-space:normal;
+    line-height:1.3;
   }
   nav button.active{
     background:var(--yellow);
@@ -147,7 +148,7 @@
   .ti-qty{color:var(--yellow);font-weight:700;font-size:13px;white-space:nowrap;}
   .ti-route{font-size:12px;color:var(--gray);margin-top:4px;}
   .ti-route b{color:var(--white);}
-  .ti-meta{font-size:11px;color:#666;margin-top:6px;}
+  .ti-meta{font-size:11px;color:#666;margin-top:6px;line-height:1.6;}
   .status-pill{
     display:inline-block;
     font-size:10px;
@@ -179,7 +180,7 @@
     padding:40px 20px;
     font-size:13px;
   }
-  .filter-row{display:flex;gap:8px;margin-bottom:14px;overflow-x:auto;}
+  .filter-row{display:flex;gap:8px;margin-bottom:14px;overflow-x:auto;flex-wrap:wrap;}
   .filter-chip{
     background:var(--black-3);
     color:var(--gray);
@@ -192,6 +193,7 @@
     cursor:pointer;
   }
   .filter-chip.active{background:var(--yellow);color:var(--black);border-color:var(--yellow);}
+  .summary-period{font-size:12px;color:var(--gray);margin-bottom:12px;}
   .summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
   .summary-card{
     background:var(--black-3);
@@ -255,7 +257,7 @@
   <span class="store-label">Você está em:</span>
   <select id="storeSelect"></select>
   <nav id="navTabs">
-    <button data-tab="nova" class="active">Nova</button>
+    <button data-tab="nova" class="active">Nova transferência</button>
     <button data-tab="confirmacoes">Confirmar <span class="badge" id="badgeCount" style="display:none;">0</span></button>
     <button data-tab="historico">Histórico</button>
     <button data-tab="resumo">Resumo</button>
@@ -271,6 +273,10 @@
       <h2>📦 Registrar transferência</h2>
       <label>Peça (nome ou código)</label>
       <input type="text" id="fPiece" placeholder="Ex: Bermuda jeans cód. 4521">
+      <label>Código de barras</label>
+      <input type="text" id="fBarcode" placeholder="Ex: 7908990974222" inputmode="numeric">
+      <label>Nome de quem está enviando</label>
+      <input type="text" id="fSender" placeholder="Seu nome">
       <label>Quantidade</label>
       <input type="number" id="fQty" min="1" value="1">
       <div class="row2">
@@ -295,11 +301,29 @@
   <!-- HISTÓRICO -->
   <section id="tab-historico" class="tab-content" style="display:none;">
     <div class="filter-row" id="historyFilters"></div>
+    <div class="filter-row" id="historyStoreFilters"></div>
     <div id="historyList"></div>
   </section>
 
   <!-- RESUMO -->
   <section id="tab-resumo" class="tab-content" style="display:none;">
+    <div class="card">
+      <h2>📅 Período</h2>
+      <div class="filter-row" id="resumoPeriodoFilters"></div>
+      <div id="resumoCustomDates" style="display:none;">
+        <div class="row2">
+          <div>
+            <label>De</label>
+            <input type="date" id="resumoFrom">
+          </div>
+          <div>
+            <label>Até</label>
+            <input type="date" id="resumoTo">
+          </div>
+        </div>
+        <button class="primary" id="btnAplicarResumo">Aplicar</button>
+      </div>
+    </div>
     <div id="summaryContent" class="loading">Carregando...</div>
   </section>
 
@@ -341,7 +365,9 @@ const STORES = [
 let allTransfers = [];
 let currentStore = localStorage.getItem("lv_transf_store") || STORES[0];
 let historyFilter = "todas";
+let historyStoreFilter = "todas";
 let gerenteFilter = "pendente_ajuste";
+let resumoPeriodo = "todos";
 
 // ---------- INIT SELECTS ----------
 function fillStoreSelects(){
@@ -372,8 +398,6 @@ document.querySelectorAll("#navTabs button").forEach(btn=>{
   });
 });
 
-
-
 // ---------- TOAST ----------
 function toast(msg){
   const t = document.getElementById("toast");
@@ -385,11 +409,14 @@ function toast(msg){
 // ---------- SUBMIT NEW TRANSFER ----------
 document.getElementById("btnSubmit").addEventListener("click", async ()=>{
   const piece = document.getElementById("fPiece").value.trim();
+  const barcode = document.getElementById("fBarcode").value.trim();
+  const sender = document.getElementById("fSender").value.trim();
   const qty = parseInt(document.getElementById("fQty").value);
   const origin = document.getElementById("fOrigin").value;
   const destination = document.getElementById("fDestination").value;
 
-  if(!piece){ toast("Digite o nome/código da peça"); return; }
+  if(!piece && !barcode){ toast("Digite o nome ou o código de barras da peça"); return; }
+  if(!sender){ toast("Digite o nome de quem está enviando"); return; }
   if(!qty || qty < 1){ toast("Quantidade inválida"); return; }
   if(origin === destination){ toast("Origem e destino não podem ser iguais"); return; }
 
@@ -400,6 +427,8 @@ document.getElementById("btnSubmit").addEventListener("click", async ()=>{
   try{
     await db.ref(REF_PATH).push({
       pieceName: piece,
+      barcode: barcode || null,
+      senderName: sender,
       quantity: qty,
       origin: origin,
       destination: destination,
@@ -409,6 +438,8 @@ document.getElementById("btnSubmit").addEventListener("click", async ()=>{
       adjustedAt: null
     });
     document.getElementById("fPiece").value = "";
+    document.getElementById("fBarcode").value = "";
+    document.getElementById("fSender").value = "";
     document.getElementById("fQty").value = 1;
     toast("Transferência registrada! ✅");
   }catch(err){
@@ -443,6 +474,15 @@ function fmtDate(ts){
   return d.toLocaleString("pt-BR", {day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});
 }
 
+function itemMeta(t, extraLines){
+  const lines = [];
+  if(t.barcode) lines.push("Cód. barras: "+escapeHtml(t.barcode));
+  if(t.senderName) lines.push("Enviado por: "+escapeHtml(t.senderName));
+  lines.push("Registrado em "+fmtDate(t.createdAt));
+  if(extraLines) lines.push(...extraLines);
+  return lines.join("<br>");
+}
+
 // ---------- CONFIRMAÇÕES (recebimento) ----------
 function renderConfirmacoes(){
   const container = document.getElementById("confirmList");
@@ -464,11 +504,11 @@ function renderConfirmacoes(){
   container.innerHTML = pending.map(t=>`
     <div class="transfer-item ${t.status}">
       <div class="ti-top">
-        <div class="ti-piece">${escapeHtml(t.pieceName)}</div>
+        <div class="ti-piece">${escapeHtml(t.pieceName || t.barcode || "—")}</div>
         <div class="ti-qty">x${t.quantity}</div>
       </div>
       <div class="ti-route"><b>${t.origin}</b> → <b>${t.destination}</b></div>
-      <div class="ti-meta">Registrado em ${fmtDate(t.createdAt)}</div>
+      <div class="ti-meta">${itemMeta(t)}</div>
       <span class="status-pill ${t.status}">${t.status}</span>
       <div class="ti-actions">
         <button class="btn-receive" onclick="confirmReceive('${t.id}')">✔ Confirmar recebimento</button>
@@ -509,14 +549,11 @@ function renderGerente(){
   container.innerHTML = list.map(t=>`
     <div class="transfer-item ${t.status}">
       <div class="ti-top">
-        <div class="ti-piece">${escapeHtml(t.pieceName)}</div>
+        <div class="ti-piece">${escapeHtml(t.pieceName || t.barcode || "—")}</div>
         <div class="ti-qty">x${t.quantity}</div>
       </div>
       <div class="ti-route"><b>${t.origin}</b> → <b>${t.destination}</b></div>
-      <div class="ti-meta">
-        Registrado em ${fmtDate(t.createdAt)}
-        ${t.receivedAt ? "<br>Recebido em "+fmtDate(t.receivedAt) : ""}
-      </div>
+      <div class="ti-meta">${itemMeta(t, t.receivedAt ? ["Recebido em "+fmtDate(t.receivedAt)] : [])}</div>
       <span class="status-pill ${t.status}">${t.status}</span>
       ${gerenteFilter === "pendente_ajuste" ? `
         <div class="ti-actions">
@@ -567,12 +604,28 @@ function setHistoryFilter(f){
   renderHistorico();
 }
 
+function renderHistoryStoreFilters(){
+  const stores = ["todas", ...STORES];
+  const container = document.getElementById("historyStoreFilters");
+  container.innerHTML = stores.map(s=>`
+    <div class="filter-chip ${s===historyStoreFilter?'active':''}" onclick="setHistoryStoreFilter('${s.replace(/'/g,"\\'")}')">${s==="todas" ? "Todas as lojas" : s}</div>
+  `).join("");
+}
+function setHistoryStoreFilter(s){
+  historyStoreFilter = s;
+  renderHistorico();
+}
+
 function renderHistorico(){
   renderHistoryFilters();
+  renderHistoryStoreFilters();
   const container = document.getElementById("historyList");
   let list = allTransfers;
   if(historyFilter !== "todas"){
     list = list.filter(t=>t.status === historyFilter);
+  }
+  if(historyStoreFilter !== "todas"){
+    list = list.filter(t=>t.origin === historyStoreFilter || t.destination === historyStoreFilter);
   }
   if(list.length === 0){
     container.innerHTML = `<div class="empty-state">Nenhuma transferência encontrada.</div>`;
@@ -581,27 +634,87 @@ function renderHistorico(){
   container.innerHTML = list.map(t=>`
     <div class="transfer-item ${t.status}">
       <div class="ti-top">
-        <div class="ti-piece">${escapeHtml(t.pieceName)}</div>
+        <div class="ti-piece">${escapeHtml(t.pieceName || t.barcode || "—")}</div>
         <div class="ti-qty">x${t.quantity}</div>
       </div>
       <div class="ti-route"><b>${t.origin}</b> → <b>${t.destination}</b></div>
-      <div class="ti-meta">
-        Registrado: ${fmtDate(t.createdAt)}
-        ${t.receivedAt ? "<br>Recebido: "+fmtDate(t.receivedAt) : ""}
-        ${t.adjustedAt ? "<br>Ajustado no Cigam: "+fmtDate(t.adjustedAt) : ""}
-      </div>
+      <div class="ti-meta">${itemMeta(t, [
+        t.receivedAt ? "Recebido: "+fmtDate(t.receivedAt) : null,
+        t.adjustedAt ? "Ajustado no Cigam: "+fmtDate(t.adjustedAt) : null
+      ].filter(Boolean))}</div>
       <span class="status-pill ${t.status}">${t.status}</span>
     </div>
   `).join("");
 }
 
 // ---------- RESUMO ----------
+function renderResumoPeriodoFilters(){
+  const opts = [
+    {id:"todos", label:"Todos"},
+    {id:"mes_atual", label:"Mês atual"},
+    {id:"mes_anterior", label:"Mês anterior"},
+    {id:"custom", label:"Data específica"}
+  ];
+  const container = document.getElementById("resumoPeriodoFilters");
+  container.innerHTML = opts.map(o=>`
+    <div class="filter-chip ${o.id===resumoPeriodo?'active':''}" onclick="setResumoPeriodo('${o.id}')">${o.label}</div>
+  `).join("");
+  document.getElementById("resumoCustomDates").style.display = resumoPeriodo === "custom" ? "block" : "none";
+}
+
+function setResumoPeriodo(p){
+  resumoPeriodo = p;
+  renderResumoPeriodoFilters();
+  if(p !== "custom"){
+    renderResumo();
+  }
+}
+
+document.getElementById("btnAplicarResumo").addEventListener("click", renderResumo);
+
+function getResumoRange(){
+  const now = new Date();
+  if(resumoPeriodo === "mes_atual"){
+    const from = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0).getTime();
+    const to = new Date(now.getFullYear(), now.getMonth()+1, 1, 0, 0, 0).getTime() - 1;
+    return {from, to};
+  }
+  if(resumoPeriodo === "mes_anterior"){
+    const from = new Date(now.getFullYear(), now.getMonth()-1, 1, 0, 0, 0).getTime();
+    const to = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0).getTime() - 1;
+    return {from, to};
+  }
+  if(resumoPeriodo === "custom"){
+    const fromVal = document.getElementById("resumoFrom").value;
+    const toVal = document.getElementById("resumoTo").value;
+    const from = fromVal ? new Date(fromVal+"T00:00:00").getTime() : 0;
+    const to = toVal ? new Date(toVal+"T23:59:59").getTime() : Date.now();
+    return {from, to};
+  }
+  return {from: 0, to: Infinity};
+}
+
+function periodLabel(){
+  if(resumoPeriodo === "mes_atual") return "Mês atual";
+  if(resumoPeriodo === "mes_anterior") return "Mês anterior";
+  if(resumoPeriodo === "custom"){
+    const fromVal = document.getElementById("resumoFrom").value;
+    const toVal = document.getElementById("resumoTo").value;
+    if(!fromVal && !toVal) return "Data específica (selecione as datas)";
+    return `De ${fromVal ? new Date(fromVal+"T00:00:00").toLocaleDateString("pt-BR") : "início"} até ${toVal ? new Date(toVal+"T00:00:00").toLocaleDateString("pt-BR") : "hoje"}`;
+  }
+  return "Todos os períodos";
+}
+
 function renderResumo(){
   const container = document.getElementById("summaryContent");
+  const {from, to} = getResumoRange();
+  const filtered = allTransfers.filter(t => (t.createdAt||0) >= from && (t.createdAt||0) <= to);
+
   const stats = {};
   STORES.forEach(s=> stats[s] = {enviadas:0, recebidas:0, qtyOut:0, qtyIn:0});
 
-  allTransfers.forEach(t=>{
+  filtered.forEach(t=>{
     if(stats[t.origin]){
       stats[t.origin].enviadas++;
       stats[t.origin].qtyOut += (t.quantity||0);
@@ -612,8 +725,9 @@ function renderResumo(){
     }
   });
 
-  container.className = "summary-grid";
-  container.innerHTML = STORES.map(s=>{
+  const periodHtml = `<div class="summary-period">${periodLabel()} — ${filtered.length} transferência(s)</div>`;
+
+  const gridHtml = STORES.map(s=>{
     const st = stats[s];
     const saldo = st.qtyIn - st.qtyOut;
     const saldoClass = saldo > 0 ? "saldo-pos" : (saldo < 0 ? "saldo-neg" : "");
@@ -630,13 +744,18 @@ function renderResumo(){
       </div>
     `;
   }).join("");
+
+  container.className = "";
+  container.innerHTML = periodHtml + `<div class="summary-grid">${gridHtml}</div>`;
 }
 
 function escapeHtml(str){
   const div = document.createElement("div");
-  div.textContent = str;
+  div.textContent = str || "";
   return div.innerHTML;
 }
+
+renderResumoPeriodoFilters();
 </script>
 </body>
 </html>
