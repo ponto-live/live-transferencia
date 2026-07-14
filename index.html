@@ -115,7 +115,8 @@
     padding:11px 12px;
     font-size:14px;
   }
-  input:focus, select:focus{outline:none;border-color:var(--yellow);}
+  input:focus, select:focus, textarea:focus{outline:none;border-color:var(--yellow);}
+  textarea{resize:vertical;font-family:inherit;}
   .row2{display:flex;gap:10px;}
   .row2 > div{flex:1;}
   button.primary{
@@ -277,6 +278,8 @@
       <input type="text" id="fBarcode" placeholder="Ex: 7908990974222" inputmode="numeric">
       <label>Nome de quem está enviando</label>
       <input type="text" id="fSender" placeholder="Seu nome">
+      <label>Observação (opcional)</label>
+      <textarea id="fNote" rows="2" placeholder="Ex: peça com defeito na etiqueta, cliente reservou, etc."></textarea>
       <label>Quantidade</label>
       <input type="number" id="fQty" min="1" value="1">
       <div class="row2">
@@ -411,6 +414,7 @@ document.getElementById("btnSubmit").addEventListener("click", async ()=>{
   const piece = document.getElementById("fPiece").value.trim();
   const barcode = document.getElementById("fBarcode").value.trim();
   const sender = document.getElementById("fSender").value.trim();
+  const note = document.getElementById("fNote").value.trim();
   const qty = parseInt(document.getElementById("fQty").value);
   const origin = document.getElementById("fOrigin").value;
   const destination = document.getElementById("fDestination").value;
@@ -429,6 +433,7 @@ document.getElementById("btnSubmit").addEventListener("click", async ()=>{
       pieceName: piece,
       barcode: barcode || null,
       senderName: sender,
+      note: note || null,
       quantity: qty,
       origin: origin,
       destination: destination,
@@ -440,6 +445,7 @@ document.getElementById("btnSubmit").addEventListener("click", async ()=>{
     document.getElementById("fPiece").value = "";
     document.getElementById("fBarcode").value = "";
     document.getElementById("fSender").value = "";
+    document.getElementById("fNote").value = "";
     document.getElementById("fQty").value = 1;
     toast("Transferência registrada! ✅");
   }catch(err){
@@ -478,6 +484,7 @@ function itemMeta(t, extraLines){
   const lines = [];
   if(t.barcode) lines.push("Cód. barras: "+escapeHtml(t.barcode));
   if(t.senderName) lines.push("Enviado por: "+escapeHtml(t.senderName));
+  if(t.note) lines.push("Obs: "+escapeHtml(t.note));
   lines.push("Registrado em "+fmtDate(t.createdAt));
   if(extraLines) lines.push(...extraLines);
   return lines.join("<br>");
