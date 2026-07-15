@@ -179,6 +179,26 @@
     padding:2px 6px;
     flex-shrink:0;
   }
+  .confirm-group-header{
+    font-size:12px;
+    font-weight:700;
+    color:var(--yellow);
+    text-transform:uppercase;
+    letter-spacing:0.4px;
+    margin:18px 0 10px;
+    padding-bottom:6px;
+    border-bottom:1px solid #262626;
+  }
+  .confirm-group-header:first-child{margin-top:0;}
+  .confirm-group-count{
+    display:inline-block;
+    background:var(--yellow);
+    color:var(--black);
+    border-radius:20px;
+    padding:1px 8px;
+    font-size:11px;
+    margin-left:4px;
+  }
   .status-pill{
     display:inline-block;
     font-size:10px;
@@ -416,19 +436,26 @@ let resumoPeriodo = "todos";
 
 // ---------- INIT SELECTS ----------
 function fillStoreSelects(){
-  const selects = [document.getElementById("storeSelect"), document.getElementById("fOrigin"), document.getElementById("fDestination")];
-  selects.forEach(sel=>{
+  const storeSelectEl = document.getElementById("storeSelect");
+  storeSelectEl.innerHTML = STORES.map(s=>`<option value="${s}">${s}</option>`).join("")
+    + `<option value="GERENCIA">🗂️ Gerência (todas as lojas)</option>`;
+
+  const originDest = [document.getElementById("fOrigin"), document.getElementById("fDestination")];
+  originDest.forEach(sel=>{
     sel.innerHTML = STORES.map(s=>`<option value="${s}">${s}</option>`).join("");
   });
-  document.getElementById("storeSelect").value = currentStore;
-  document.getElementById("fOrigin").value = currentStore;
+
+  storeSelectEl.value = currentStore;
+  document.getElementById("fOrigin").value = STORES.includes(currentStore) ? currentStore : STORES[0];
 }
 fillStoreSelects();
 
 document.getElementById("storeSelect").addEventListener("change", e=>{
   currentStore = e.target.value;
   localStorage.setItem("lv_transf_store", currentStore);
-  document.getElementById("fOrigin").value = currentStore;
+  if(STORES.includes(currentStore)){
+    document.getElementById("fOrigin").value = currentStore;
+  }
   renderAll();
 });
 
@@ -616,9 +643,51 @@ function itemsBlockHtml(t){
 // ---------- CONFIRMAÇÕES (recebimento) ----------
 function renderConfirmacoes(){
   const container = document.getElementById("confirmList");
+  const badge = document.getElementById("badgeCount");
+
+  if(currentStore === "GERENCIA"){
+    const pending = allTransfers.filter(t=>t.status === "pendente");
+
+    if(pending.length > 0){
+      badge.style.display = "inline-block";
+      badge.textContent = pending.length;
+    } else {
+      badge.style.display = "none";
+    }
+
+    if(pending.length === 0){
+      container.innerHTML = `<div class="empty-state">Nenhuma transferência pendente em nenhuma loja.</div>`;
+      return;
+    }
+
+    const groups = {};
+    pending.forEach(t=>{
+      if(!groups[t.destination]) groups[t.destination] = [];
+      groups[t.destination].push(t);
+    });
+
+    container.innerHTML = Object.keys(groups).map(store=>`
+      <div class="confirm-group-header">${escapeHtml(store)} <span class="confirm-group-count">${groups[store].length}</span></div>
+      ${groups[store].map(t=>`
+        <div class="transfer-item ${t.status}">
+          <div class="ti-top">
+            ${itemsBlockHtml(t)}
+            <div class="ti-qty">x${totalQty(t)}</div>
+          </div>
+          <div class="ti-route"><b>${t.origin}</b> → <b>${t.destination}</b></div>
+          <div class="ti-meta">${itemMeta(t)}</div>
+          <span class="status-pill ${t.status}">${t.status}</span>
+          <div class="ti-actions">
+            <button class="btn-receive" onclick="confirmReceive('${t.id}')">✔ Confirmar recebimento</button>
+          </div>
+        </div>
+      `).join("")}
+    `).join("");
+    return;
+  }
+
   const pending = allTransfers.filter(t=>t.status === "pendente" && t.destination === currentStore);
 
-  const badge = document.getElementById("badgeCount");
   if(pending.length > 0){
     badge.style.display = "inline-block";
     badge.textContent = pending.length;
