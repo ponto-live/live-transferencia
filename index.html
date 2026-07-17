@@ -420,15 +420,27 @@ const db = firebase.database();
 const REF_PATH = "transferencias_pecas";
 
 const STORES = [
-  "Praiamar Shopping",
-  "Miramar Shopping",
-  "Azevedo Sodré",
-  "Litoral Plaza (Praia Grande)",
-  "Bioritmo/LSBIO"
+  "Azevedo Sodré (LSS)",
+  "Praiamar (LSP)",
+  "Miramar (LSMM)",
+  "Bioritmo (LSBIO)",
+  "Praia Grande (LPG)"
 ];
 
+// Mapeia nomes antigos (já gravados no histórico) para os nomes atuais das lojas
+const STORE_ALIASES = {
+  "Praiamar Shopping": "Praiamar (LSP)",
+  "Miramar Shopping": "Miramar (LSMM)",
+  "Azevedo Sodré": "Azevedo Sodré (LSS)",
+  "Litoral Plaza (Praia Grande)": "Praia Grande (LPG)",
+  "Bioritmo/LSBIO": "Bioritmo (LSBIO)"
+};
+function normStore(name){
+  return STORE_ALIASES[name] || name;
+}
+
 let allTransfers = [];
-let currentStore = localStorage.getItem("lv_transf_store") || STORES[0];
+let currentStore = normStore(localStorage.getItem("lv_transf_store") || STORES[0]);
 let historyFilter = "todas";
 let historyStoreFilter = "todas";
 let gerenteFilter = "pendente_ajuste";
@@ -568,6 +580,7 @@ document.getElementById("btnSubmit").addEventListener("click", async ()=>{
     });
     pendingItems = [];
     renderItemsList();
+    document.getElementById("fSender").value = "";
     document.getElementById("fNote").value = "";
     toast("Transferência registrada! ✅");
   }catch(err){
@@ -662,8 +675,9 @@ function renderConfirmacoes(){
 
     const groups = {};
     pending.forEach(t=>{
-      if(!groups[t.destination]) groups[t.destination] = [];
-      groups[t.destination].push(t);
+      const destKey = normStore(t.destination);
+      if(!groups[destKey]) groups[destKey] = [];
+      groups[destKey].push(t);
     });
 
     container.innerHTML = Object.keys(groups).map(store=>`
@@ -674,7 +688,7 @@ function renderConfirmacoes(){
             ${itemsBlockHtml(t)}
             <div class="ti-qty">x${totalQty(t)}</div>
           </div>
-          <div class="ti-route"><b>${t.origin}</b> → <b>${t.destination}</b></div>
+          <div class="ti-route"><b>${normStore(t.origin)}</b> → <b>${normStore(t.destination)}</b></div>
           <div class="ti-meta">${itemMeta(t)}</div>
           <span class="status-pill ${t.status}">${t.status}</span>
           <div class="ti-actions">
@@ -686,7 +700,7 @@ function renderConfirmacoes(){
     return;
   }
 
-  const pending = allTransfers.filter(t=>t.status === "pendente" && t.destination === currentStore);
+  const pending = allTransfers.filter(t=>t.status === "pendente" && normStore(t.destination) === currentStore);
 
   if(pending.length > 0){
     badge.style.display = "inline-block";
@@ -706,7 +720,7 @@ function renderConfirmacoes(){
         ${itemsBlockHtml(t)}
         <div class="ti-qty">x${totalQty(t)}</div>
       </div>
-      <div class="ti-route"><b>${t.origin}</b> → <b>${t.destination}</b></div>
+      <div class="ti-route"><b>${normStore(t.origin)}</b> → <b>${normStore(t.destination)}</b></div>
       <div class="ti-meta">${itemMeta(t)}</div>
       <span class="status-pill ${t.status}">${t.status}</span>
       <div class="ti-actions">
@@ -751,7 +765,7 @@ function renderGerente(){
         ${itemsBlockHtml(t)}
         <div class="ti-qty">x${totalQty(t)}</div>
       </div>
-      <div class="ti-route"><b>${t.origin}</b> → <b>${t.destination}</b></div>
+      <div class="ti-route"><b>${normStore(t.origin)}</b> → <b>${normStore(t.destination)}</b></div>
       <div class="ti-meta">${itemMeta(t, t.receivedAt ? ["Recebido em "+fmtDate(t.receivedAt)] : [])}</div>
       <span class="status-pill ${t.status}">${t.status}</span>
       ${gerenteFilter === "pendente_ajuste" ? `
@@ -824,7 +838,7 @@ function renderHistorico(){
     list = list.filter(t=>t.status === historyFilter);
   }
   if(historyStoreFilter !== "todas"){
-    list = list.filter(t=>t.origin === historyStoreFilter || t.destination === historyStoreFilter);
+    list = list.filter(t=>normStore(t.origin) === historyStoreFilter || normStore(t.destination) === historyStoreFilter);
   }
   if(list.length === 0){
     container.innerHTML = `<div class="empty-state">Nenhuma transferência encontrada.</div>`;
@@ -836,7 +850,7 @@ function renderHistorico(){
         ${itemsBlockHtml(t)}
         <div class="ti-qty">x${totalQty(t)}</div>
       </div>
-      <div class="ti-route"><b>${t.origin}</b> → <b>${t.destination}</b></div>
+      <div class="ti-route"><b>${normStore(t.origin)}</b> → <b>${normStore(t.destination)}</b></div>
       <div class="ti-meta">${itemMeta(t, [
         t.receivedAt ? "Recebido: "+fmtDate(t.receivedAt) : null,
         t.adjustedAt ? "Ajustado no Cigam: "+fmtDate(t.adjustedAt) : null
@@ -915,13 +929,15 @@ function renderResumo(){
 
   filtered.forEach(t=>{
     const qty = totalQty(t);
-    if(stats[t.origin]){
-      stats[t.origin].enviadas++;
-      stats[t.origin].qtyOut += qty;
+    const origKey = normStore(t.origin);
+    const destKey = normStore(t.destination);
+    if(stats[origKey]){
+      stats[origKey].enviadas++;
+      stats[origKey].qtyOut += qty;
     }
-    if(stats[t.destination]){
-      stats[t.destination].recebidas++;
-      stats[t.destination].qtyIn += qty;
+    if(stats[destKey]){
+      stats[destKey].recebidas++;
+      stats[destKey].qtyIn += qty;
     }
   });
 
