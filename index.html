@@ -339,8 +339,8 @@
 
     <div class="card">
       <h2>📦 Adicionar peças</h2>
-      <label>Código de barras</label>
-      <input type="text" id="fBarcode" placeholder="Bipe ou digite o código e aperte Enter" inputmode="numeric" autocomplete="off">
+      <label>Código de barras (obrigatório)</label>
+      <input type="text" id="fBarcode" placeholder="Bipe o código (inicia com 7) e aperte Enter" inputmode="numeric" autocomplete="off">
       <label>Peça (nome, opcional)</label>
       <input type="text" id="fPiece" placeholder="Ex: Bermuda jeans cód. 4521">
       <div class="row2">
@@ -531,10 +531,11 @@ function addItemFromForm(){
   const barcode = document.getElementById("fBarcode").value.trim();
   const qty = parseInt(document.getElementById("fQty").value);
 
-  if(!piece && !barcode){ toast("Digite o nome ou bipe o código de barras da peça"); return; }
+  if(!barcode){ toast("Bipe ou digite o código de barras da peça"); return; }
+  if(!barcode.startsWith("7")){ toast("Código de barras inválido — deve começar com 7"); return; }
   if(!qty || qty < 1){ toast("Quantidade inválida"); return; }
 
-  pendingItems.push({ pieceName: piece || null, barcode: barcode || null, quantity: qty });
+  pendingItems.push({ pieceName: piece || null, barcode: barcode, quantity: qty });
   renderItemsList();
 
   document.getElementById("fPiece").value = "";
