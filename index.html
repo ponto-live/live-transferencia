@@ -452,21 +452,30 @@ function fillStoreSelects(){
   storeSelectEl.innerHTML = STORES.map(s=>`<option value="${s}">${s}</option>`).join("")
     + `<option value="GERENCIA">🗂️ Gerência (todas as lojas)</option>`;
 
-  const originDest = [document.getElementById("fOrigin"), document.getElementById("fDestination")];
-  originDest.forEach(sel=>{
-    sel.innerHTML = STORES.map(s=>`<option value="${s}">${s}</option>`).join("");
-  });
+  document.getElementById("fOrigin").innerHTML = STORES.map(s=>`<option value="${s}">${s}</option>`).join("");
 
   storeSelectEl.value = currentStore;
   document.getElementById("fOrigin").value = STORES.includes(currentStore) ? currentStore : STORES[0];
+  updateDestinationOptions();
 }
 fillStoreSelects();
+
+function updateDestinationOptions(){
+  const originVal = document.getElementById("fOrigin").value;
+  const destSel = document.getElementById("fDestination");
+  const options = STORES.filter(s=>s !== originVal);
+  destSel.innerHTML = `<option value="" disabled selected>Selecione a loja de destino</option>`
+    + options.map(s=>`<option value="${s}">${s}</option>`).join("");
+  destSel.value = "";
+}
+document.getElementById("fOrigin").addEventListener("change", updateDestinationOptions);
 
 document.getElementById("storeSelect").addEventListener("change", e=>{
   currentStore = e.target.value;
   localStorage.setItem("lv_transf_store", currentStore);
   if(STORES.includes(currentStore)){
     document.getElementById("fOrigin").value = currentStore;
+    updateDestinationOptions();
   }
   renderAll();
 });
@@ -561,6 +570,7 @@ document.getElementById("btnSubmit").addEventListener("click", async ()=>{
 
   if(pendingItems.length === 0){ toast("Adicione ao menos uma peça"); return; }
   if(!sender){ toast("Digite o nome de quem está enviando"); return; }
+  if(!destination){ toast("Selecione a loja de destino"); return; }
   if(origin === destination){ toast("Origem e destino não podem ser iguais"); return; }
 
   const btn = document.getElementById("btnSubmit");
@@ -583,6 +593,7 @@ document.getElementById("btnSubmit").addEventListener("click", async ()=>{
     renderItemsList();
     document.getElementById("fSender").value = "";
     document.getElementById("fNote").value = "";
+    updateDestinationOptions();
     toast("Transferência registrada! ✅");
   }catch(err){
     console.error(err);
