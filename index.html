@@ -311,7 +311,7 @@
     <button data-tab="confirmacoes">Confirmar <span class="badge" id="badgeCount" style="display:none;">0</span></button>
     <button data-tab="historico">Histórico</button>
     <button data-tab="resumo">Resumo</button>
-    <button data-tab="gerente">Gerente <span class="badge" id="badgeGerente" style="display:none;">0</span></button>
+    <button data-tab="gerente" id="navGerenteBtn">Gerente <span class="badge" id="badgeGerente" style="display:none;">0</span></button>
   </nav>
 </header>
 
@@ -468,6 +468,18 @@ function updateDestinationOptions(){
     + options.map(s=>`<option value="${s}">${s}</option>`).join("");
   destSel.value = "";
 }
+function updateGerenteTabVisibility(){
+  const gerenteBtn = document.getElementById("navGerenteBtn");
+  if(currentStore === "GERENCIA"){
+    gerenteBtn.style.display = "";
+  } else {
+    gerenteBtn.style.display = "none";
+    if(gerenteBtn.classList.contains("active")){
+      document.querySelector('#navTabs button[data-tab="nova"]').click();
+    }
+  }
+}
+
 document.getElementById("fOrigin").addEventListener("change", updateDestinationOptions);
 
 document.getElementById("storeSelect").addEventListener("change", e=>{
@@ -477,8 +489,10 @@ document.getElementById("storeSelect").addEventListener("change", e=>{
     document.getElementById("fOrigin").value = currentStore;
     updateDestinationOptions();
   }
+  updateGerenteTabVisibility();
   renderAll();
 });
+updateGerenteTabVisibility();
 
 // ---------- TABS ----------
 document.querySelectorAll("#navTabs button").forEach(btn=>{
